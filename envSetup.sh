@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-NAME=coffeaenv
+NAME=ttgenv
 LCG=/cvmfs/sft.cern.ch/lcg/views/LCG_96python3/x86_64-centos7-gcc8-opt
 
 source ${LCG}/setup.sh
@@ -7,7 +7,8 @@ source ${LCG}/setup.sh
 python -m venv --copies $NAME
 source $NAME/bin/activate
 python -m pip install setuptools pip --upgrade
-python -m pip install "coffea>=0.6.27"
+python -m pip install "uproot4<1"
+python -m pip install "coffea==0.6.47"
 python -m pip install xxhash
 
 sed -i '40s/.*/VIRTUAL_ENV="$(cd "$(dirname "$(dirname "${BASH_SOURCE[0]}" )")" \&\& pwd)"/' $NAME/bin/activate
