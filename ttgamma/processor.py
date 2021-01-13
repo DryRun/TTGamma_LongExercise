@@ -215,7 +215,6 @@ class TTGammaProcessor(processor.ProcessorABC):
         else:
             passOverlapRemoval = np.ones_like(len(events))==1
             
-        """
         ##################
         # OBJECT SELECTION
         ##################
@@ -225,10 +224,10 @@ class TTGammaProcessor(processor.ProcessorABC):
 
         #select tight muons
         # tight muons should have a pt of at least 30 GeV, |eta| < 2.4, pass the tight muon ID cut (tightID variable), and have a relative isolation of less than 0.15
-        muonSelectTight = ((?) & 
-                           (?) & 
-                           (?) & 
-                           (?)
+        muonSelectTight = ((events.Muon.pt>30) & 
+                           (abs(events.Muon.eta)<2.4) & 
+                           (events.Muon.tightId) & 
+                           (events.Muon.pfRelIso04_all < 0.15)
                           )
 
         #select loose muons        
@@ -253,12 +252,12 @@ class TTGammaProcessor(processor.ProcessorABC):
         # 1. ADD SELECTION
         #select tight electrons
         # tight electrons should have a pt of at least 35 GeV, |eta| < 2.1, pass the cut based electron id (cutBased variable in NanoAOD>=4), and pass the etaGap, D0, and DZ cuts defined above
-        electronSelectTight = ((?) & 
-                               (?) & 
-                               ? &      
-                               (?) &
-                               ? &
-                               ? &
+        electronSelectTight = ((events.Electron.pt>35) & 
+                               (abs(events.Electron.eta)<2.1) & 
+                               eleEtaGap &      
+                               (events.Electron.cutBased>=4) &
+                               elePassDXY & 
+                               elePassDZ
                               )
 
         #select loose electrons
@@ -274,14 +273,14 @@ class TTGammaProcessor(processor.ProcessorABC):
         # 1. ADD SELECTION
         #  Object selection
         #select the subset of muons passing the muonSelectTight and muonSelectLoose cuts
-        tightMuon = ?
-        looseMuon = ?
-
+        tightMuon = events.Muon[muonSelectTight]
+        looseMuon = events.Muon[muonSelectLoose]
+        
         # 1. ADD SELECTION
         #  Object selection
         #select the subset of electrons passing the electronSelectTight and electronSelectLoose cuts
-        tightElectron = ?
-        looseElectron = ?
+        tightElectron = events.Electron[electronSelectTight]
+        looseElectron = events.Electron[electronSelectLoose]
 
         #### Calculate deltaR between photon and nearest lepton 
         # Remove photons that are within 0.4 of a lepton
@@ -325,10 +324,9 @@ class TTGammaProcessor(processor.ProcessorABC):
         # 1. ADD SELECTION
         #  Object selection
         #select tightPhoton, the subset of photons passing the photonSelect cut and the photonID cut        
-        tightPhoton = ?
-        #select loosePhoton, the subset of photons passing the photonSelect cut and all photonID cuts without the charged hadron isolation cut applied (photonID_NoChIso)
-        loosePhoton = ?
-        
+        tightPhoton = events.Photon[photonSelect & photonID]
+        #select loosePhoton, the subset of photons passing the photonSelect cut and all photonID cuts without the charged hadron isolation cut applied
+        loosePhoton = events.Photon[photonSelect & photonID_NoChIso]
 
         ####
         #update jet kinematics based on jet energy corrections
@@ -354,7 +352,6 @@ class TTGammaProcessor(processor.ProcessorABC):
             elif(self.jetSyst == 'JESDown'):
                 jets = corrected_jets.JES_jes.down
         
-
         ##check dR jet,lepton & jet,photon
         jetMu, jetMuDR = jets.nearest(tightMuon, return_metric=True)
         jetMuMask = ak.fill_none(jetMuDR > 0.4, True)
@@ -371,60 +368,58 @@ class TTGammaProcessor(processor.ProcessorABC):
         ##medium jet ID cut
         jetIDbit = 1
 
-        jetSelectNoPt = ((?) &
+        jetSelectNoPt = ((abs(jets.eta) < 2.4) &
                          ((jets.jetId >> jetIDbit & 1)==1) &
-                         ? & ? & ? )
+                         jetMuMask & jetEleMask & jetPhoMask )
         
-        #Add 30 GeV pt cut
-        jetSelect = jetSelectNoPt & ?
+        jetSelect = jetSelectNoPt & (jets.pt > 30)
 
         # 1. ADD SELECTION
         #select the subset of jets passing the jetSelect cuts
-        tightJet = ?
+        tightJet = jets[jetSelect]
 
         # 1. ADD SELECTION
         # select the subset of tightJet which pass the Deep CSV tagger
         bTagWP = 0.6321   #2016 DeepCSV working point
         btagged = tightJet.btagDeepB>bTagWP  
-        bTaggedJet= ?
-        """
+        bTaggedJet= tightJet[btagged]
+
 
         #####################
         # EVENT SELECTION
         #####################
         ### PART 1B: Uncomment to add event selection
-        """
         # 1. ADD SELECTION
         ## apply triggers
         # muon events should be triggered by either the HLT_IsoMu24 or HLT_IsoTkMu24 triggers
         # electron events should be triggered by HLT_Ele27_WPTight_Gsf trigger
         # HINT: trigger values can be accessed with the variable events.HLT.TRIGGERNAME, 
         # the bitwise or operator can be used to select multiple triggers events.HLT.TRIGGER1 | events.HLT.TRIGGER2
-        muTrigger  = ?
-        eleTrigger = ?
+        muTrigger  = events.HLT.IsoMu24 | events.HLT.IsoTkMu24
+        eleTrigger = events.HLT.Ele27_WPTight_Gsf
 
         # 1. ADD SELECTION
         #  Event selection
         #oneMuon, should be true if there is exactly one tight muon in the event 
         # (hint, the ak.num() method returns the number of objects in each row of a jagged array)
-        oneMuon = ?
+        oneMuon = (ak.num(tightMuon) == 1)
         #muVeto, should be true if there are no tight muons in the event
-        muVeto  = ?
-
+        muVeto  = (ak.num(tightMuon) == 0)
+        
         # 1. ADD SELECTION
         #  Event selection
  
         #oneEle should be true if there is exactly one tight electron in the event
-        oneEle  = ?
-
+        oneEle  = (ak.num(tightElectron) == 1)
+    
         #eleVeto should be true if there are no tight electrons in the event
-        eleVeto = ?
+        eleVeto = (ak.num(tightElectron) == 0)
 
         # 1. ADD SELECTION
         #  Event selection
         #looseMuonVeto and looseElectronVeto should be true if there are 0 loose muons or electrons in the event
-        looseMuonVeto = ?
-        looseElectronVeto = ?
+        looseMuonVeto = (ak.num(looseMuon) == 0)
+        looseElectronVeto = (ak.num(looseElectron) == 0)
 
         # 1. ADD SELECTION
         # muon selection, requires events to pass:   muon trigger
@@ -433,7 +428,9 @@ class TTGammaProcessor(processor.ProcessorABC):
         #                                            have no electrons
         #                                            have no loose muons
         #                                            have no loose electrons
-        muon_eventSelection = ?
+        muon_eventSelection = (muTrigger & passOverlapRemoval & 
+                               oneMuon & eleVeto & 
+                               looseMuonVeto & looseElectronVeto) 
 
         # electron selection, requires events to pass:   electron trigger
         #                                                overlap removal
@@ -441,7 +438,9 @@ class TTGammaProcessor(processor.ProcessorABC):
         #                                                have no muons
         #                                                have no loose muons
         #                                                have no loose electrons
-        electron_eventSelection = ?
+        electron_eventSelection = (eleTrigger & passOverlapRemoval &
+                                   oneEle & muVeto & 
+                                   looseMuonVeto & looseElectronVeto)  
 
         # 1. ADD SELECTION
         #add selection 'eleSel', for events passing the electron event selection, and muSel for those passing the muon event selection
@@ -450,42 +449,41 @@ class TTGammaProcessor(processor.ProcessorABC):
         #create a selection object
         selection = PackedSelection()
 
-        selection.add('eleSel', ???)
-        selection.add('muSel', ???)
+        selection.add('eleSel',electron_eventSelection)
+        selection.add('muSel',muon_eventSelection)
+
+#        selection.add('eleSel',ak.to_numpy(electron_eventSelection))
+#        selection.add('muSel',ak.to_numpy(muon_eventSelection))
 
         #add two jet selection criteria
         #   First, 'jetSel' which selects events with at least 4 tightJet and at least one bTaggedJet
         nJets = 4
-        selection.add('jetSel',      ???) 
+        selection.add('jetSel',      (ak.num(tightJet) >= nJets) & (ak.num(bTaggedJet) >= 1) ) 
         #   Second, 'jetSel_3j0t' which selects events with at least 3 tightJet and exactly zero bTaggedJet
-        selection.add('jetSel_3j0t', ???) 
+        selection.add('jetSel_3j0t', (ak.num(tightJet) >= 3)     & (ak.num(bTaggedJet) == 0) ) 
 
         # add selection for events with exactly 0 tight photons
-        selection.add('zeroPho', ???)
+        selection.add('zeroPho', (ak.num(tightPhoton) == 0))
 
         # add selection for events with exactly 1 tight photon
-        selection.add('onePho',  ???)
+        selection.add('onePho',  (ak.num(tightPhoton) == 1))
 
         # add selection for events with exactly 1 loose photon
-        selection.add('loosePho',???)
-        """
+        selection.add('loosePho',(ak.num(loosePhoton) == 1))
 
         ##################
         # EVENT VARIABLES
         ##################
 
         # PART 2A: Uncomment to begin implementing event variables
-        """
         # 2. DEFINE VARIABLES
         ## Define M3, mass of 3-jet pair with highest pT
         # find all possible combinations of 3 tight jets in the events 
         #hint: using the ak.combinations(array,n) method chooses n unique items from array. Use the "fields" option to define keys you can use to access the items
-        triJet=ak.combinations(???)
-        #Sum together jets from the triJet object and find its pt and mass
-        triJetPt = (???).pt
-        triJetMass = (???).mass
-        # define the M3 variable, the triJetMass of the combination with the highest triJetPt value (using the .argmax() method with axis=-1,keepdims=True)
-        M3 = triJetMass[???]
+        triJet=ak.combinations(tightJet,3,fields=["first","second","third"])
+        triJetPt = (triJet.first + triJet.second + triJet.third).pt
+        triJetMass = (triJet.first + triJet.second + triJet.third).mass
+        M3 = triJetMass[ak.argmax(triJetPt,axis=-1,keepdims=True)]
 
         leadingMuon = tightMuon[:,:1]
         leadingElectron = tightElectron[:,:1]
@@ -494,33 +492,30 @@ class TTGammaProcessor(processor.ProcessorABC):
         leadingPhotonLoose = loosePhoton[:,:1]
 
         # 2. DEFINE VARIABLES
-
         # define egammaMass, mass of combinations of tightElectron and leadingPhoton (hint: using the ak.cartesian() method)
-        egammaPairs = ?
+        egammaPairs = ak.cartesian({"pho":leadingPhoton, "ele": tightElectron})
         # avoid erros when egammaPairs is empty
         if ak.all(ak.num(egammaPairs)==0):
-            egammaMass = np.ones((len(events),1))*-1
+            egammaMass =  np.ones((len(events),1))*-1
         else:
-            egammaMass = ??
-
+            egammaMass = (egammaPairs.pho + egammaPairs.ele).mass
         # define mugammaMass, mass of combinations of tightMuon and leadingPhoton (hint: using the ak.cartesian() method) 
         mugammaPairs = ak.cartesian({"pho":leadingPhoton, "mu":tightMuon})
         if ak.all(ak.num(mugammaPairs)==0):
             mugammaMass = np.ones((len(events),1))*-1
         else:
-            mugammaMass = ??
-        """
+            mugammaMass = (mugammaPairs.pho + mugammaPairs.mu).mass
 
         ###################
         # PHOTON CATEGORIES
         ###################
 
         # Define photon category for each event
+
         phoCategory = np.ones(len(events))
         phoCategoryLoose = np.ones(len(events))
 
         # PART 2B: Uncomment to begin implementing photon categorization
-        """
         if self.isMC:
             #### Photon categories, using pdgID of the matched gen particle for the leading photon in the event
             # reco photons matched to a generated photon
@@ -534,16 +529,17 @@ class TTGammaProcessor(processor.ProcessorABC):
             # 2. DEFINE VARIABLES
             # define the photon categories for tight photon events
             # a genuine photon is a reconstructed photon which is matched to a generator level photon, and does not have a hadronic parent
-            isGenPho = ??
+            isGenPho = matchedPho & ~hadronicParent
             # a hadronic photon is a reconstructed photon which is matched to a generator level photon, but has a hadronic parent
-            isHadPho = ??
+            isHadPho = matchedPho & hadronicParent
             # a misidentified electron is a reconstructed photon which is matched to a generator level electron
-            isMisIDele = ??
-            # a hadronic/fake photon is a reconstructed photon that does not fall within any of the above categories and has at least one photon
-            isHadFake = ??  & (ak.num(leadingPhoton)==1)
+            isMisIDele = matchedEle
+            # a hadronic/fake photon is a reconstructed photon that does not fall within any of the above categories
+            isHadFake = ~(isMisIDele | isGenPho | isHadPho) & (ak.num(leadingPhoton)==1)
 
             #define integer definition for the photon category axis 
             phoCategory = 1*isGenPho + 2*isMisIDele + 3*isHadPho + 4*isHadFake
+
         
             # do photon matching for loose photons as well
             # reco photons matched to a generated photon 
@@ -556,17 +552,16 @@ class TTGammaProcessor(processor.ProcessorABC):
             #####
             # 2. DEFINE VARIABLES
             # a genuine photon is a reconstructed photon which is matched to a generator level photon, and does not have a hadronic parent
-            isGenPhoLoose = ??
+            isGenPhoLoose = matchedPhoLoose & ~hadronicParentLoose
             # a hadronic photon is a reconstructed photon which is matched to a generator level photon, but has a hadronic parent
-            isHadPhoLoose = ??
+            isHadPhoLoose = matchedPhoLoose & hadronicParentLoose
             # a misidentified electron is a reconstructed photon which is matched to a generator level electron
-            isMisIDeleLoose = ??
-            # a hadronic/fake photon is a reconstructed photon that does not fall within any of the above categories and has at least one loose photon
-            isHadFakeLoose = ?? & (ak.num(leadingPhotonLoose)==1)        
+            isMisIDeleLoose = matchedEle
+            # a hadronic/fake photon is a reconstructed photon that does not fall within any of the above categories
+            isHadFakeLoose = ~(isMisIDeleLoose | isGenPhoLoose | isHadPhoLoose) & (ak.num(leadingPhotonLoose)==1)        
 
             #define integer definition for the photon category axis
-            phoCategoryLoose = 1*isGenPhoLoose + 2*isMisIDeleLoose + 3*isHadPhoLoose + 4*isHadFakeLoose            
-        """
+            phoCategoryLoose = 1*isGenPhoLoose + 2*isMisIDeleLoose + 3*isHadPhoLoose + 4*isHadFakeLoose
 
         ################
         # EVENT WEIGHTS
