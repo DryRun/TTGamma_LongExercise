@@ -63,6 +63,8 @@ jet_factory = CorrectedJetsFactory(name_map, jec_stack)
 class TTGammaProcessor(processor.ProcessorABC):
 #     def __init__(self, runNum = -1, eventNum = -1):
     def __init__(self, isMC=False, runNum=-1, eventNum=-1, mcEventYields=None, jetSyst='nominal'):
+        print ("I am a coffea processor!")
+
         ################################
         # INITIALIZE COFFEA PROCESSOR
         ################################
